@@ -3,11 +3,11 @@
 Чтобы запустить данный скрипт, сначала нужно добавить права на исполнение:
 
 ```shell
-chmod +x style_code.sh  
+chmod +x code_style.sh  
 ```
 
 Чтобы запустить данный скрипт:
 
 ```shell
-./style_code.sh  
+./code_style.sh  
 ```
