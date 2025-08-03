@@ -1,82 +1,106 @@
 #!/bin/bash
 
-set -e 
+set -e
 
 help_text() {
     echo "Использование: $0 [опции] [аргументы]"
     echo "Флаги:"
     echo "  -h, --help    Показать справку"
     echo "  -t, --type    Указать формат форматируемых файлов"
-    echo "               Доступные форматы: c, sh, h"
+    echo "                Доступные форматы: c, sh, h"
     echo "  -f, --file    Указать конкретный файл для форматирования"
-    echo "  -d, --dir     Указать директорию для рекурсивного форматирования"
 }
 
 file=""
-directory=""
 file_type=""
 
-while [[ "$1" != "" ]]; do
+while [[ $1 != "" ]]; do
     case $1 in
-        -h | --help)
-            help_text
-            exit
-            ;;
-        -t | --type)
-            shift; 
-            if [[ -z "$1" ]]; then
-                exit 2
-            fi
-            file_type=$1
-            ;;
-        -f | --file)
-            shift;
-            if [[ -z "$1" ]]; then
-                exit 3
-            fi
-            file=$1
-            ;;
-        -d | --dir)
-            shift;
-            if [[ -z "$1" ]]; then
-                exit 4
-            fi
-            directory=$1
-            ;;
-        *)
-            echo "Неверный флаг: $1"
-            exit 5
-            ;;
+    -h | --help)
+        help_text
+        exit 0
+        ;;
+    -t | --type)
+        shift
+        if [[ -z $1 ]]; then
+            echo "Ошибка: отсутствует значение для -t [--type]"
+            exit 2
+        fi
+        file_type=$1
+        ;;
+    -f | --file)
+        shift
+        if [[ -z $1 ]]; then
+            echo "Ошибка: отсутствует значение для -f [--file]"
+            exit 3
+        fi
+        file=$1
+        ;;
+    *)
+        echo "Неверный флаг: $1"
+        exit 5
+        ;;
     esac
     shift
 done
 
-shell_files=""
-c_files=""
-h_files=""
+process_files() {
+    local type=$1
+    local files=()
 
-if [[ "$file_type" = "" ]]; then
-    shell_files=$(find . -name "*.sh")
-    c_files=$(find . -name "*.c")
-    h_files=$(find . -name "*.h")
-elif [[ "$file_type" = "h" ]]; then
-    h_files=$(find . -name "*.h")
-elif [[ "$file_type" = "c" ]]; then
-    c_files=$(find . -name "*.c")
-elif [[ "$file_type" = "sh" ]]; then
-    shell_files=$(find . -name "*.sh")
-else
-    exit 6
+    case $type in
+    h)
+        while IFS= read -r file -d ''; do
+            files+=("$file")
+        done < <(find . -type f -name "*.h" -print0)
+        ;;
+    c)
+        while IFS= read -r file -d ''; do
+            files+=("$file")
+        done < <(find . -type f -name "*.c" -print0)
+        ;;
+    sh)
+        while IFS= read -r -d '' file; do
+            files+=("$file")
+        done < <(find . -type f -name "*.sh" -print0)
+        ;;
+    esac
+    for obj in "${files[@]}"; do
+        case $type in
+        h | c)
+            clang-format -style=Microsoft -i -Werror "$obj"
+            ;;
+        sh)
+            shfmt -i 4 -s -w "$obj"
+            ;;
+        esac
+    done
+}
+
+if [[ -n $file ]]; then
+    if [[ $file == *.h || $file == *.c ]]; then
+        clang-format -style=Microsoft -i -Werror "$file"
+    elif [[ $file == *.sh ]]; then
+        shfmt -i 4 -s -w "$file"
+    else
+        echo "Ошибка: неизвестный тип файла"
+        exit 1
+    fi
+    exit
 fi
 
-for file in $shell_files; do
-    shfmt -i 4 -s -w "${file}"
-done
-
-for file in $c_files; do
-    clang-format -style=Microsoft -i -Werror "${file}"
-done
-
-for file in $h_files; do
-    clang-format -style=Microsoft -i -Werror "${file}"
-done
+if [[ -z $file_type ]]; then
+    process_files h
+    process_files c
+    process_files sh
+else
+    case $file_type in
+    h | c | sh)
+        process_files "$file_type"
+        ;;
+    *)
+        echo "Ошибка: неверный тип файла"
+        exit 6
+        ;;
+    esac
+fi
